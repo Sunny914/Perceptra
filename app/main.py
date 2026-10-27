@@ -29,7 +29,7 @@ from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from prometheus_client import Counter, Histogram
 from prometheus_fastapi_instrumentator import Instrumentator
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.agents.graph import build_graph
 from app.guardrails import guard, initialize_rails
@@ -63,6 +63,16 @@ def _init_rate_limiter():
     from slowapi.errors import RateLimitExceeded
     from slowapi.extension import _rate_limit_exceeded_handler
     from slowapi.util import get_remote_address
+
+    if not settings.UPSTASH_REDIS_REST_URL or not settings.UPSTASH_REDIS_REST_TOKEN:
+        app.state.limiter = Limiter(key_func=get_remote_address)
+        app.state.rate_limiter_storage = "memory"
+        logfire.warning(
+            "Upstash Redis is not configured. Rate limits are in-memory: they reset on "
+            "restart and are not shared across processes."
+        )
+        app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+        return True
 
     try:
         storage = RedisStorage(settings.redis_url)
@@ -184,8 +194,18 @@ def startup_event():
 
 
 class QueryRequest(BaseModel):
-    q: str
-    thread_id: Optional[str] = "default_user"
+    """Query body.
+
+    thread_id selects a LangGraph checkpoint. Callers must supply their own id.
+    There is no shared default. A single RAG_API_KEY does not identify a user:
+    anyone who has that key and knows a thread_id can continue that thread.
+    """
+
+    q: str = Field(min_length=1, max_length=4000)
+    thread_id: Optional[str] = Field(
+        default=None,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+    )
 
 
 @app.get("/")
@@ -202,7 +222,8 @@ def get_graph_image(_api_key: str = Depends(verify_api_key)):
         png_bytes = app.state.rag_agent.get_graph().draw_mermaid_png()
         return Response(content=png_bytes, media_type="image/png")
     except Exception as e:
-        return {"error": f"Could not generate graph image: {e}"}
+        logfire.error(f"Could not generate graph image: {e}")
+        return {"error": "Could not generate graph image."}
 
 
 @app.post("/query")
@@ -217,7 +238,7 @@ def query(
     Returns the final answer, thought process, status, and sources.
     """
     q = body.q
-    thread_id = body.thread_id
+    thread_id = body.thread_id or str(uuid.uuid4())
     request_id = str(uuid.uuid4())
     set_request_id(request_id)
 
@@ -236,6 +257,7 @@ def query(
                 "thought_process": ["Intent: Guardrails Fired", "Retrieval: Skipped"],
                 "status": "Blocked by guardrails.",
                 "sources": [],
+                "thread_id": thread_id,
             }
 
         GUARDRAILS_BLOCKS_TOTAL.labels(blocked="false").inc()
@@ -265,6 +287,7 @@ def query(
                 "thought_process": final_output.get("plan"),
                 "status": final_output.get("status"),
                 "sources": final_output.get("documents", []),
+                "thread_id": thread_id,
             }
         except Exception as e:
             RAG_REQUESTS_TOTAL.labels(status="error").inc()
@@ -278,6 +301,7 @@ def query(
                 status_code=500,
                 content={
                     "request_id": request_id,
+                    "thread_id": thread_id,
                     "status": "error",
                     "message": "Failed to process request. Please try again later.",
                 },

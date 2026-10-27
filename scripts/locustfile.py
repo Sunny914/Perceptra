@@ -1,26 +1,12 @@
-"""Locust load-test script for the deployed RAG API.
+"""Locust load-test script for the RAG API.
 
-Usage (headless CLI, so you do not need to type the host in the UI):
-    pip install locust
-    export RAG_API_KEY=rag-gA_rHdtlCnf4Om8gtx4M1D80MaaQQEpCsrcpenJod1g
-    locust -f scripts/locustfile.py \
-      --headless \
-      -u 1 \
-      -r 1 \
-      -t 10m \
-      --host http://rag-alb-1767061209.us-east-1.elb.amazonaws.com
+Set the target and credential in the environment. Do not hardcode either.
 
-Or use the web UI:
-    locust -f scripts/locustfile.py --host http://rag-alb-1767061209.us-east-1.elb.amazonaws.com
+    $env:RAG_API_KEY = "<your key>"
+    locust -f scripts/locustfile.py --headless -u 1 -r 1 -t 10m --host http://localhost:8000
 
-Then open http://localhost:8089 and set:
-  - Number of users  (e.g. 5, 10, 20)
-  - Spawn rate       (e.g. 1, 2, 5)
-
-Notes:
-  - Each /query call takes roughly 30-50 seconds depending on the question,
-    so keep the run time generous or increase the user count for a quick burst.
-  - The Authorization header is set per-request; change RAG_API_KEY if needed.
+A key that was previously committed must be rotated. Deleting it from this file
+does not remove it from Git history and does not revoke it.
 """
 
 import os
@@ -28,14 +14,13 @@ import random
 
 from locust import HttpUser, between, task
 
+RAG_API_KEY = os.environ.get("RAG_API_KEY", "").strip()
+if not RAG_API_KEY:
+    raise RuntimeError(
+        "RAG_API_KEY is required for load testing. Export it in the environment before "
+        "starting Locust. Do not commit the value."
+    )
 
-RAG_API_KEY = os.environ.get(
-    "RAG_API_KEY",
-    # Replace with your real production key if you do not want to set env var.
-    "rag-gA_rHdtlCnf4Om8gtx4M1D80MaaQQEpCsrcpenJod1g",
-)
-
-# Sample questions that exercise different topics. Edit freely.
 SAMPLE_QUESTIONS = [
     "What is a Kubernetes pod?",
     "Explain the difference between a process and a thread.",
@@ -48,8 +33,6 @@ SAMPLE_QUESTIONS = [
 class RAGQueryUser(HttpUser):
     """Simulates a user asking questions to the RAG /query endpoint."""
 
-    # Wait 1-5 seconds between requests to mimic real think time.
-    # Set to between(0, 0) for a pure stress test.
     wait_time = between(1, 5)
 
     @task

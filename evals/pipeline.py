@@ -13,8 +13,6 @@ import time
 import logfire
 import requests
 
-API_URL = "http://localhost:8000/query"
-STATUS_URL_TEMPLATE = "http://localhost:8000/query/status/{job_id}"
 RESPONSE_TRUNCATE = 300
 DELAY_BETWEEN_CALLS = 10  # seconds — stays within Groq RPM on the main key
 REQUEST_TIMEOUT = 120  # seconds — guardrails + LangGraph + Groq can take >60s
@@ -39,9 +37,21 @@ def detect_tool(thought_process: list) -> str:
     return "unknown"
 
 
+def _backend_base() -> str:
+    return os.getenv("BACKEND_URL", "http://localhost:8000").rstrip("/")
+
+
+def _auth_headers() -> dict:
+    headers = {"Content-Type": "application/json"}
+    api_key = os.getenv("RAG_API_KEY", "").strip()
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    return headers
+
+
 def _poll_for_result(job_id: str) -> dict:
     """Poll /query/status until the Celery job completes or times out."""
-    url = STATUS_URL_TEMPLATE.format(job_id=job_id)
+    url = f"{_backend_base()}/query/status/{job_id}"
     for attempt in range(MAX_POLL_ATTEMPTS):
         with logfire.span("🔄 Eval polling job", job_id=job_id, attempt=attempt + 1):
             resp = requests.get(url, timeout=REQUEST_TIMEOUT)
@@ -62,8 +72,9 @@ def _poll_for_result(job_id: str) -> dict:
 def _fetch_query_result(question: str, thread_id: str) -> dict:
     """Submit a query and return the final result (handling sync block + async jobs)."""
     resp = requests.post(
-        API_URL,
+        f"{_backend_base()}/query",
         json={"q": question, "thread_id": thread_id},
+        headers=_auth_headers(),
         timeout=REQUEST_TIMEOUT,
     )
     resp.raise_for_status()

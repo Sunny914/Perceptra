@@ -42,11 +42,15 @@ class Settings(BaseSettings):
     QDRANT_COLLECTION: str = "enterprise_rag"
 
     # --- NEON SERVERLESS POSTGRES (LangGraph checkpointer) ---
-    NEON_DB_URL: str
+    # Optional. When unset, the graph uses process-local MemorySaver.
+    # That state is lost on restart and is not shared across processes.
+    NEON_DB_URL: str | None = None
 
     # --- UPSTASH REDIS (rate limiting) ---
-    UPSTASH_REDIS_REST_URL: str
-    UPSTASH_REDIS_REST_TOKEN: str
+    # Optional. When either value is unset, rate limiting stays in process memory.
+    # Those limits reset on restart and are not shared across processes.
+    UPSTASH_REDIS_REST_URL: str | None = None
+    UPSTASH_REDIS_REST_TOKEN: str | None = None
 
     # --- API SAFETY ---
     API_KEY: str | None = Field(default=None, alias="RAG_API_KEY")
@@ -61,10 +65,19 @@ class Settings(BaseSettings):
     LANGSMITH_PROJECT: str = "rag_scale_test"
     LANGSMITH_ENDPOINT: str = "https://api.smith.langchain.com"
 
-    @field_validator("QDRANT_API_KEY", mode="before")
+    @field_validator(
+        "QDRANT_API_KEY",
+        "NEON_DB_URL",
+        "UPSTASH_REDIS_REST_URL",
+        "UPSTASH_REDIS_REST_TOKEN",
+        "LOGFIRE_TOKEN",
+        "LANGSMITH_API_KEY",
+        "JUDGE_OPENAI_API_KEY",
+        mode="before",
+    )
     @classmethod
-    def _empty_qdrant_key_as_none(cls, v):
-        """Treat empty QDRANT_API_KEY as unset so local Qdrant doesn't receive a blank header."""
+    def _empty_optional_as_none(cls, v):
+        """Treat blank optional values as unset."""
         if v == "" or v is None:
             return None
         return v
@@ -81,6 +94,8 @@ class Settings(BaseSettings):
         Serverless Postgres closes idle connections, so append TCP keepalive
         options to keep the connection pool healthy between requests.
         """
+        if not self.NEON_DB_URL:
+            raise RuntimeError("NEON_DB_URL is not set. Postgres checkpointing is unavailable.")
         base = self.NEON_DB_URL.rstrip("/")
         keepalive = "keepalives=1&keepalives_idle=30&keepalives_interval=10&keepalives_count=5"
         if "?" in base:
@@ -95,6 +110,8 @@ class Settings(BaseSettings):
         used as the Redis password under the default username. The result is
         passed to `limits` for rate limiting and to the health checker.
         """
+        if not self.UPSTASH_REDIS_REST_URL or not self.UPSTASH_REDIS_REST_TOKEN:
+            raise RuntimeError("Upstash Redis is not configured. In-memory rate limiting is the fallback.")
         host = self.UPSTASH_REDIS_REST_URL.replace("https://", "").rstrip("/")
         token = quote(self.UPSTASH_REDIS_REST_TOKEN, safe="")
         netloc = f"default:{token}@{host}"

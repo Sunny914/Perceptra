@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "enterprise-rag"
 version = "0.1.0"
 description = "Enterprise Agentic RAG with LangGraph, Guardrails, and LLM Gateway"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.13"
 dependencies = [
     # --- CORE API ---
     "fastapi==0.136.1",
@@ -61,6 +61,7 @@ dependencies = [
     "python-pptx==1.0.2",
     "python-docx==1.2.0",
     "pypdf==6.11.0",
+    "pdfplumber==0.11.7",
     "beautifulsoup4==4.14.3",
 ]
 
@@ -69,9 +70,14 @@ dev = [
     "pytest>=8.4.0",
     "pytest-asyncio>=0.25.0",
     "ruff>=0.11.0",
+]
+evals = [
     "ragas",
     "deepeval",
     "nest-asyncio",
+    "pandas",
+]
+load = [
     "locust",
 ]
 

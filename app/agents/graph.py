@@ -19,6 +19,13 @@ def create_checkpointer() -> BaseCheckpointSaver:
     LangGraph's migrations include CREATE INDEX CONCURRENTLY, which Neon
     rejects when run inside a transaction (the default ConnectionPool mode).
     """
+    if not settings.NEON_DB_URL:
+        logfire.warning(
+            "NEON_DB_URL is not set. Using MemorySaver. Conversation state stays in this "
+            "process, is lost on restart, and is not shared across instances."
+        )
+        return MemorySaver()
+
     try:
         from langgraph.checkpoint.postgres import PostgresSaver
         from psycopg_pool import ConnectionPool

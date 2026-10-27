@@ -47,8 +47,10 @@ def main():
         import secrets
 
         values["RAG_API_KEY"] = "rag-" + secrets.token_urlsafe(32)
-        print(f"Generated RAG_API_KEY={values['RAG_API_KEY']}")
-        print("Save this key; it is required for /query authorization.")
+        key_path = REPO_ROOT / "scripts" / "rag_api_key.local"
+        key_path.write_text(values["RAG_API_KEY"] + "\n", encoding="utf-8")
+        print("Generated RAG_API_KEY and wrote it to scripts/rag_api_key.local (gitignored).")
+        print("Copy that value into .env. Do not commit it.")
 
     missing = [k for k in SECRET_KEYS if not values[k]]
     if missing:
@@ -87,7 +89,7 @@ def main():
         print(f"{key}_ARN={arn}")
 
     # Write a shell snippet with the ARNs so later commands can source it.
-    state_path = REPO_ROOT / "scripts" / "aws_secret_arns.sh"
+    state_path = REPO_ROOT / "scripts" / "aws_secret_arns.local.sh"
     with state_path.open("w") as f:
         f.write("#!/usr/bin/env bash\n# AWS Secrets Manager ARNs\n")
         for key, arn in arns.items():

@@ -58,3 +58,35 @@ tenvv
 
 # Redis local dump
 dump.rdb
+
+# Local environment files. .env.example stays tracked.
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+*.p12
+credentials.json
+secrets.json
+
+# Test, lint, and coverage artifacts
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Generated ingestion output and local model/cache files
+processed_data/
+*.pt
+*.bin
+*.onnx
+models/
+
+# Local deployment state. Templates stay tracked.
+scripts/*.local.sh
+scripts/rag_api_key.local
+
+# Third-party PDFs already tracked are not removed by this rule.
+# Do not add new ones. See PHASE1_REMEDIATION_REPORT.md.
+DATA/noisy_data/*.pdf

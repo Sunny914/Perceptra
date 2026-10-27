@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import requests
 
+from app.config import settings
 from app.services.health.connection_checker import (
     ConnectionResult,
     _check_jina_embeddings,
@@ -22,6 +23,23 @@ def _ok(name: str) -> ConnectionResult:
 
 def _fail(name: str, message: str = "fail") -> ConnectionResult:
     return ConnectionResult(name, False, message)
+
+
+def test_check_neon_postgres_reports_unconfigured():
+    with patch.object(settings, "NEON_DB_URL", None):
+        result = _check_neon_postgres()
+    assert result.healthy is False
+    assert "not set" in result.message
+
+
+def test_check_upstash_redis_reports_unconfigured():
+    with (
+        patch.object(settings, "UPSTASH_REDIS_REST_URL", None),
+        patch.object(settings, "UPSTASH_REDIS_REST_TOKEN", None),
+    ):
+        result = _check_upstash_redis()
+    assert result.healthy is False
+    assert "not set" in result.message
 
 
 def test_check_neon_postgres_success():

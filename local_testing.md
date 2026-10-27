@@ -29,9 +29,9 @@ source .venv/bin/activate
 ### 1.3 Install dependencies
 
 ```bash
-uv pip install -r requirements.txt
-# or
-pip install -r requirements.txt
+uv sync --frozen --extra dev
+# evaluation console additionally needs:
+# uv sync --frozen --extra dev --extra evals
 ```
 
 ### 1.4 Configure `.env`

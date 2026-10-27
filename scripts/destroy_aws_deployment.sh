@@ -5,7 +5,16 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 source scripts/aws_deploy_env.sh
-source scripts/aws_deploy_state.sh
+if [ -f scripts/aws_deploy_state.local.sh ]; then
+  source scripts/aws_deploy_state.local.sh
+else
+  source scripts/aws_deploy_state.sh
+fi
+
+if [[ "${VPC_ID:-}" == *REPLACE_ME* || -z "${VPC_ID:-}" ]]; then
+  echo "Refusing to destroy resources: put real IDs in scripts/aws_deploy_state.local.sh."
+  exit 1
+fi
 
 echo "=== AWS resource teardown starting ==="
 

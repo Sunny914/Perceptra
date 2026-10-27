@@ -37,6 +37,8 @@ class ConnectionResult:
 
 def _check_neon_postgres() -> ConnectionResult:
     """Verify Neon Postgres is reachable and accepts queries."""
+    if not settings.NEON_DB_URL:
+        return ConnectionResult("postgres", False, "NEON_DB_URL not set; MemorySaver fallback")
     pool = None
     conn = None
     try:
@@ -71,6 +73,8 @@ def _check_neon_postgres() -> ConnectionResult:
 
 def _check_upstash_redis() -> ConnectionResult:
     """Verify Upstash Redis is reachable."""
+    if not settings.UPSTASH_REDIS_REST_URL or not settings.UPSTASH_REDIS_REST_TOKEN:
+        return ConnectionResult("redis", False, "Upstash Redis not set; in-memory rate limiter")
     try:
         r = Redis.from_url(
             settings.redis_url,

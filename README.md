@@ -91,15 +91,33 @@ graph TD
 
 ### 1. Install dependencies
 
+Use Python 3.12. Python 3.11 also works. Python 3.13 does not: `torch==2.5.1` has no 3.13 wheel. Dependencies are declared in `pyproject.toml` and locked in `uv.lock`.
+
 ```powershell
-python -m venv tenvv
-.\tenvv\Scripts\activate
-pip install -r requirements.txt
+uv venv --python 3.12 .venv
+.\.venv\Scripts\Activate.ps1
+uv sync --frozen --extra dev
 ```
+
+On Linux or macOS:
+
+```bash
+uv venv --python 3.12 .venv
+source .venv/bin/activate
+uv sync --frozen --extra dev
+```
+
+Add `--extra evals` when you want the RAGAS evaluation console. The API and unit tests do not need it.
 
 ### 2. Configure environment
 
-Create a `.env` file with the following keys:
+Copy `.env.example` to `.env` and fill in real values there. Do not commit `.env`.
+
+Required for a real query: `OPENAI_API_KEY`, `PORTKEY_API_KEY`, `PORTKEY_PRIMARY_CONFIG_ID`, `JINA_API_KEY`, and `QDRANT_URL` (or `QDRANT_CLUSTER_ENDPOINT`).
+
+Optional: `NEON_DB_URL` (conversation memory; otherwise process-local memory that dies on restart), `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` (shared rate limits; otherwise per-process memory), `LOGFIRE_TOKEN`, `LANGSMITH_API_KEY`, `RAG_API_KEY`.
+
+`RAG_API_KEY` is one shared demo key. It does not identify a user. Anyone who has the key and knows a `thread_id` can continue that conversation. Omit `thread_id` and the API creates a new one and returns it. There is no shared default thread.
 
 ```env
 # OpenAI LLM
@@ -140,7 +158,7 @@ BACKEND_URL = "http://localhost:8000"
 
 ### 3. Run data ingestion
 
-Parses all documents in `DATA/`, chunks them, saves metadata to `processed_data/`, and indexes vectors into Qdrant.
+Parses all documents in `DATA/`, chunks them, saves metadata to `processed_data/`, and indexes vectors into Qdrant. `--wipe` deletes the Qdrant collection named by `QDRANT_COLLECTION` before recreating it.
 
 ```powershell
 python -m app.ingestion.processor DATA --wipe
@@ -170,7 +188,7 @@ streamlit run ui/app.py
 ```powershell
 curl -X POST "http://localhost:8000/query" `
   -H "Content-Type: application/json" `
-  -d '{"q": "How do I start Redis for a Kubernetes work queue?", "thread_id": "user-1"}'
+  -d '{"q": "How do I start Redis for a Kubernetes work queue?", "thread_id": "demo-7f3c1a"}'
 
 # Response: {"question": "...", "answer": "...", "thought_process": [...], "status": "...", "sources": [...]}
 ```
@@ -188,13 +206,15 @@ streamlit run evals/app.py
 ### 7. Run tests locally
 
 ```powershell
-# Lint + format checks
-ruff check app tests evals
-ruff format --check app tests evals
-
-# Unit tests
-$env:LOGFIRE_IGNORE_NO_CONFIG=1
-pytest tests/
+$env:LOGFIRE_IGNORE_NO_CONFIG = "1"
+$env:JINA_API_KEY = "dummy"
+$env:OPENAI_API_KEY = "dummy"
+$env:PORTKEY_API_KEY = "dummy"
+$env:PORTKEY_PRIMARY_CONFIG_ID = "pc-dummy"
+$env:QDRANT_URL = "https://dummy.example.com"
+uv run ruff check app tests evals
+uv run ruff format --check app tests evals
+uv run pytest tests/
 ```
 
 ---

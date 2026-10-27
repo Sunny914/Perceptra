@@ -5,12 +5,23 @@ Classifies each result as TP / TN / FP / FN and computes precision + recall.
 """
 
 import copy
+import os
 import time
 
 import logfire
 import requests
 
-API_URL = "http://localhost:8000/query"
+
+def _query_url() -> str:
+    return os.getenv("BACKEND_URL", "http://localhost:8000").rstrip("/") + "/query"
+
+
+def _auth_headers() -> dict:
+    headers = {"Content-Type": "application/json"}
+    api_key = os.getenv("RAG_API_KEY", "").strip()
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    return headers
 
 
 def _is_blocked(response_json: dict) -> bool:
@@ -39,8 +50,9 @@ def run_guardrails_eval(guardrails_samples: list, progress_callback=None) -> lis
             ):
                 try:
                     resp = requests.post(
-                        API_URL,
+                        _query_url(),
                         json={"q": sample["input"], "thread_id": f"guardrail_eval_{i}"},
+                        headers=_auth_headers(),
                         timeout=30,
                     )
                     resp.raise_for_status()

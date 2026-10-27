@@ -14,9 +14,16 @@ TASK_DEF_DIR = REPO_ROOT / ".aws" / "task-definitions"
 OUTPUT_DIR = Path("/tmp")
 
 
+def _state_file(local_name: str, tracked_name: str) -> Path:
+    local_path = REPO_ROOT / "scripts" / local_name
+    if local_path.exists():
+        return local_path
+    return REPO_ROOT / "scripts" / tracked_name
+
+
 def load_arns():
     arns = {}
-    arns_file = REPO_ROOT / "scripts" / "aws_secret_arns.sh"
+    arns_file = _state_file("aws_secret_arns.local.sh", "aws_secret_arns.sh")
     if arns_file.exists():
         with arns_file.open() as f:
             for line in f:
@@ -29,7 +36,7 @@ def load_arns():
 
 def load_state():
     state = {}
-    state_file = REPO_ROOT / "scripts" / "aws_deploy_state.sh"
+    state_file = _state_file("aws_deploy_state.local.sh", "aws_deploy_state.sh")
     if state_file.exists():
         with state_file.open() as f:
             for line in f:
